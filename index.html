@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PlanPress – Printable Planner Maker</title>
+  <meta name="description" content="Make your own printable planner: year, monthly and weekly pages with your dates, habit tracker, budget, meal planner, daily pages and more. Print at home. Private and offline.">
+  <meta name="theme-color" content="#3f6b5e">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><img src="icon-192.png" alt="" width="30" height="30"><span>PlanPress</span></div>
+    <div class="top-btns">
+      <button id="moreBtn" class="tb">☰ More</button>
+      <button id="proBtn" class="pro-btn" hidden>★ Get Pro</button>
+    </div>
+    <div id="menu" class="menu" hidden>
+      <button id="resetBtn">Start again with the default planner…</button>
+      <a href="help.html" target="_blank" rel="noopener">❓ How to use PlanPress</a>
+      <a href="mailto:thequan03072002@gmail.com?subject=PlanPress%20feedback">✉ Feedback &amp; support</a>
+      <a href="https://apps.microsoft.com/detail/9MWSF3JMP1GJ" target="_blank" rel="noopener">More apps: PrintCal – photo cards &amp; calendars</a>
+    </div>
+  </header>
+
+  <main class="pane">
+    <section class="side">
+      <h2>Your planner</h2>
+      <label class="field">Title on the cover<input id="title" type="text" maxlength="40"></label>
+      <label class="field">Name (optional)<input id="owner" type="text" maxlength="40" placeholder="e.g. Emma Carter"></label>
+      <div class="two">
+        <label class="field">Year<select id="year"></select></label>
+        <label class="field">Starts in<select id="start"></select></label>
+      </div>
+      <div class="two">
+        <label class="field">Week starts on<select id="weekStart"><option value="0">Sunday</option><option value="1">Monday</option></select></label>
+        <label class="field">Holidays<select id="holidays"></select></label>
+      </div>
+
+      <h2>Look</h2>
+      <label class="field">Style<select id="style"></select></label>
+      <label class="field">Page size<select id="paper"></select></label>
+      <label class="check" id="twoUpRow"><input id="twoUp" type="checkbox"> Print 2 pages on each sheet (cut in half)</label>
+      <label class="check"><input id="holes" type="checkbox"> Extra margin for a ring binder or hole punch</label>
+
+      <h2>Pages</h2>
+      <div id="sections" class="sections"></div>
+
+      <h2>Your important dates</h2>
+      <p class="hint">One on each line – birthdays, anniversaries, trips. They appear on your calendar pages.</p>
+      <textarea id="dates" rows="6" placeholder="Mar 14 Mom's birthday&#10;Jun 2 Our anniversary&#10;Aug 10 Beach trip"></textarea>
+
+      <h2>Your habits</h2>
+      <p class="hint">One on each line (up to 12).</p>
+      <textarea id="habits" rows="6"></textarea>
+    </section>
+
+    <section class="main-col">
+      <div class="pager">
+        <button id="pgPrev" class="ghost">‹</button>
+        <select id="pgSel"></select>
+        <button id="pgNext" class="ghost">›</button>
+        <span id="pgCount" class="muted"></span>
+        <span class="grow"></span>
+        <button id="printBtn" class="primary">🖨 Print planner</button>
+      </div>
+      <p id="info" class="hint center"></p>
+      <div id="preview" class="preview"></div>
+    </section>
+  </main>
+
+  <dialog id="proDialog" class="dlg">
+    <h2>PlanPress Pro</h2>
+    <p class="muted">One-time purchase. Yours forever on this Microsoft account – no subscription.</p>
+    <ul class="pro-list">
+      <li><strong>All 6 styles</strong> <span class="muted">(Free: Simple and Sage)</span></li>
+      <li><strong>More pages:</strong> budget, meal planner &amp; grocery list, daily pages, cleaning schedule, yearly goals</li>
+      <li><strong>Half Letter and A5 sizes</strong> – print 2 pages on each sheet, cut and bind like a real planner</li>
+      <li>Free updates – a new year is always one click away</li>
+    </ul>
+    <p id="proMsg" class="pro-msg" hidden></p>
+    <div class="row-btns">
+      <button id="buyBtn" class="primary">Unlock Pro</button>
+      <button id="restoreBtn" class="ghost">Restore purchase</button>
+      <button id="closePro" class="ghost">Not now</button>
+    </div>
+  </dialog>
+
+  <div id="toast" class="toast" hidden></div>
+  <style id="pageRule"></style>
+  <div id="printArea"></div>
+  <script src="app.js"></script>
+</body>
+</html>
