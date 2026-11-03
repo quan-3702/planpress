@@ -79,3 +79,5 @@ input:focus, select:focus, textarea:focus, button:focus-visible { outline: 3px s
   .side { border-right: 0; border-bottom: 1px solid var(--line); }
   .brand span { display: none; }
 }
+.fb-note { color: var(--muted); font-size: 12px; font-weight: 400; line-height: 1.45; margin: 10px 0 0; overflow-wrap: anywhere; }
+.fb-note a { color: inherit; text-decoration: underline; }

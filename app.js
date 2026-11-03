@@ -12,7 +12,14 @@ let proAvailable = false; // limits apply only when the Store actually sells the
 proAvailable = true; // owner's rule: Pro is never free – free limits apply everywhere (website, Store, offline) until Pro is bought
 let proSku = PRO_SKU;
 let isPro = false;
-try { isPro = localStorage.getItem('planpress-pro') === '1'; } catch (_) {}
+try { // website: never trust the cache (Pro is bought in the Store app); Store app: trust it only if the Store confirmed it in the last 30 days
+  if ('getDigitalGoodsService' in window && localStorage.getItem('planpress-pro') === '1') {
+    const ok = localStorage.getItem('planpress-pro-ok');
+    if (ok === null) localStorage.setItem('planpress-pro-ok', String(Date.now())); // saved by an older version: counts as confirmed now, once
+    const t = ok === null ? Date.now() : Number(ok);
+    isPro = t > 0 && t <= Date.now() + 864e5 && Date.now() - t < 30 * 864e5; // a future, NaN or garbage date is not trusted
+  }
+} catch (_) {}
 const unlocked = () => isPro || !proAvailable;
 async function billing() {
   if (!('getDigitalGoodsService' in window)) return null;
@@ -43,7 +50,10 @@ async function checkPro() {
     if (details[0]) { proSku = details[0].itemId; if (!PRO_IDS.includes(proSku)) PRO_IDS.push(proSku); }
     const list = await svc.listPurchases();
     const owned = list.some((p) => PRO_IDS.includes(p.itemId));
-    if (owned || details.length) { setPro(owned); return owned; }
+    if (owned || details.length) {
+      try { if (owned) localStorage.setItem('planpress-pro-ok', String(Date.now())); else localStorage.removeItem('planpress-pro-ok'); } catch (_) {}
+      setPro(owned); return owned;
+    }
     setPro(isPro); // Store did not answer (offline): keep what we knew
     return isPro;
   } catch (_) { return isPro; }
@@ -503,18 +513,19 @@ function buildPages() {
   const on = S.on, out = [], cnt = (k) => Math.max(1, Math.min(60, Number(S.counts[k]) || 1));
   if (on.cover) out.push(coverPage());
   if (on.year) out.push(yearPage());
-  if (on.goals) out.push(goalsPage());
+  const pro = (pg) => Object.assign(pg, { pro: true }); // pages from Pro sections (marked as a preview for free users)
+  if (on.goals) out.push(pro(goalsPage()));
   if (on.dates) out.push(datesPage());
   const weeks = on.weekly ? weeksOfSpan() : [];
   span().forEach((o, i) => {
     if (on.monthly) out.push(monthPage(o));
     if (on.habit) out.push(habitPage(o));
-    if (on.budget) out.push(budgetPage(o));
+    if (on.budget) out.push(pro(budgetPage(o)));
     weeks.filter((w) => w.month === i).forEach((w) => out.push(weekPage(w)));
   });
-  if (on.meal) for (let i = 0; i < cnt('meal'); i++) out.push(mealPage(i));
-  if (on.daily) for (let i = 0; i < cnt('daily'); i++) out.push(dailyPage(i));
-  if (on.cleaning) out.push(cleaningPage());
+  if (on.meal) for (let i = 0; i < cnt('meal'); i++) out.push(pro(mealPage(i)));
+  if (on.daily) for (let i = 0; i < cnt('daily'); i++) out.push(pro(dailyPage(i)));
+  if (on.cleaning) out.push(pro(cleaningPage()));
   if (on.todo) for (let i = 0; i < cnt('todo'); i++) out.push(todoPage(i));
   if (on.notes) for (let i = 0; i < cnt('notes'); i++) out.push(notesPage(i));
   if (!out.length) out.push(page('Empty', `<rect width="${paper().w}" height="${paper().h}" fill="#fff"/>` + T(paper().w / 2, paper().h / 2, 'Tick some pages on the left', 16, { anchor: 'middle', fill: MUTED })));
@@ -547,10 +558,20 @@ function render() {
   $('pgSel').innerHTML = pages.map((p, i) => `<option value="${i}">${i + 1}. ${esc(p.label)}</option>`).join('');
   $('pgSel').value = cur;
   $('pgCount').textContent = `${pages.length} pages`;
-  $('preview').innerHTML = pages[cur].svg.replace(/ width="[\d.]+" height="[\d.]+"/, ' preserveAspectRatio="xMidYMid meet"');
+  let svg = pages[cur].svg.replace(/ width="[\d.]+" height="[\d.]+"/, ' preserveAspectRatio="xMidYMid meet"');
+  if (!unlocked() && (st().pro || paper().pro || pages[cur].pro)) svg = svg.replace(/<\/svg>$/, previewMark(pages[cur].w, pages[cur].h) + '</svg>'); // free users see Pro pages marked as a preview
+  $('preview').innerHTML = svg;
   $('pgPrev').disabled = cur === 0; $('pgNext').disabled = cur >= pages.length - 1;
   const P = paper(), sheets = P.pair && S.twoUp ? Math.ceil(pages.length / 2) : pages.length;
   $('info').textContent = `${pages.length} pages · ${sheets} sheets of ${P.pair && S.twoUp ? (P.pair === 'A4' ? 'A4' : 'Letter') : P.sheet === 'A4' ? 'A4' : P.sheet === 'A5' ? 'A5' : P.sheet === 'letter' && P.w < 500 ? 'Half Letter' : 'Letter'} paper` + (P.pair && S.twoUp ? ' – cut each sheet in half' : '') + '. Tip: choose “Save as PDF” in the print window to keep a PDF copy.';
+}
+// on-screen only: a "PREVIEW" watermark over pages that use Pro (never in print)
+function previewMark(W, H) {
+  const fs = Math.min(W, H) * 0.16, a = Math.atan2(H, W) * -180 / Math.PI;
+  let s = `<g pointer-events="none" font-family="Segoe UI, Arial, sans-serif" font-weight="800" text-anchor="middle" transform="rotate(${f1(a)} ${f1(W / 2)} ${f1(H / 2)})">`;
+  s += `<text x="${f1(W / 2)}" y="${f1(H / 2 + fs * 0.35)}" font-size="${f1(fs)}" letter-spacing="${f1(fs * 0.12)}" fill="#fff" fill-opacity=".55" stroke="#1f1a17" stroke-opacity=".45" stroke-width="${f1(fs * 0.02)}">PREVIEW</text>`;
+  [-1, 1].forEach((k) => { s += `<text x="${f1(W / 2)}" y="${f1(H / 2 + k * fs * 1.25 + fs * 0.12)}" font-size="${f1(fs * 0.3)}" fill="#fff" fill-opacity=".6" stroke="#1f1a17" stroke-opacity=".35" stroke-width="${f1(fs * 0.008)}">★ PlanPress Pro</text>`; });
+  return s + '</g>';
 }
 let renderTimer = 0;
 const soon = () => { clearTimeout(renderTimer); renderTimer = setTimeout(render, 200); };
