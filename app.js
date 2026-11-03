@@ -9,6 +9,7 @@ const PRO_SKU = 'planpress_pro';
 const PRO_IDS = [PRO_SKU];
 let STORE_URL = 'https://apps.microsoft.com/detail/9MWM5PWSHH2F';
 let proAvailable = false; // limits apply only when the Store actually sells the add-on
+try { if ('getDigitalGoodsService' in window && localStorage.getItem('planpress-proavail') === '1') proAvailable = true; } catch (_) {} // keep Pro limits when offline
 let proSku = PRO_SKU;
 let isPro = false;
 try { isPro = localStorage.getItem('planpress-pro') === '1'; } catch (_) {}
@@ -26,17 +27,26 @@ function setPro(v) {
   b.hidden = !proAvailable && !v;
   renderUI();
 }
+async function checkProAfterBuy() {
+  for (let i = 0; i < 6; i++) {
+    if (await checkPro()) return true;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  proMessage('Thank you! If Pro is not unlocked within a minute, click “Restore purchase”.');
+  return false;
+}
 async function checkPro() {
   const svc = await billing();
   if (!svc) return false;
   try {
     const details = await svc.getDetails(PRO_IDS).catch(() => []);
-    proAvailable = details.length > 0;
+    if (details.length) { proAvailable = true; try { localStorage.setItem('planpress-proavail', '1'); } catch (_) {} }
     if (details[0]) { proSku = details[0].itemId; if (!PRO_IDS.includes(proSku)) PRO_IDS.push(proSku); }
     const list = await svc.listPurchases();
     const owned = list.some((p) => PRO_IDS.includes(p.itemId));
-    setPro(owned);
-    return owned;
+    if (owned || details.length) { setPro(owned); return owned; }
+    setPro(isPro); // Store did not answer (offline): keep what we knew
+    return isPro;
   } catch (_) { return isPro; }
 }
 function proMessage(text) { const m = $('proMsg'); m.hidden = !text; m.textContent = text || ''; }
@@ -69,7 +79,7 @@ async function buyPro() {
     proMessage('Purchase could not be completed: ' + (e.message || e));
     return;
   }
-  if (await checkPro()) { proMessage('Thank you! Pro is unlocked. ★'); setTimeout(() => $('proDialog').close(), 1500); }
+  if (await checkProAfterBuy()) { proMessage('Thank you! Pro is unlocked. ★'); setTimeout(() => $('proDialog').close(), 1500); }
 }
 
 // ---------- dates and holidays ----------
@@ -551,7 +561,8 @@ function proProblems() {
   if (st().pro) used.push(`the ${st().name} style`);
   if (paper().pro) used.push(`the ${paper().name} size`);
   SECTIONS.filter((s) => s.pro && S.on[s.k]).forEach((s) => used.push(s.n.toLowerCase()));
-  return used.length ? `Your planner uses ${used.join(', ')} – part of PlanPress Pro. Unlock Pro, or untick the Pro pages and pick the Simple or Sage style.` : '';
+  const fix = [SECTIONS.some((s) => s.pro && S.on[s.k]) ? 'untick the Pro pages' : '', st().pro ? 'pick the Simple or Sage style' : '', paper().pro ? 'pick the Letter or A4 size' : ''].filter(Boolean);
+  return used.length ? `Your planner uses ${used.join(', ')} – part of PlanPress Pro. Unlock Pro, or ${fix.join(', ')}.` : '';
 }
 function printNow() {
   const why = proProblems(); if (why) { openPro(why); return; }
@@ -588,7 +599,7 @@ $('holes').onchange = (e) => { S.holes = e.target.checked; save(); render(); };
 $('sections').addEventListener('change', (e) => {
   const t = e.target;
   if (t.dataset.sec) { S.on[t.dataset.sec] = t.checked; if (t.checked && isProSection(t.dataset.sec) && !unlocked()) toast('These pages are part of Pro – you can preview them; printing them needs Pro.'); }
-  else if (t.dataset.cnt) S.counts[t.dataset.cnt] = Math.max(1, Math.min(60, Number(t.value) || 1));
+  else if (t.dataset.cnt) { S.counts[t.dataset.cnt] = Math.max(1, Math.min(60, Math.round(Number(t.value)) || 1)); t.value = S.counts[t.dataset.cnt]; } // show the number that is really used
   else if (t.dataset.opt) S[t.dataset.opt] = t.value;
   save(); render();
   if (t.dataset.sec && t.checked) { const i = pages.findIndex((p) => p.label.toLowerCase().startsWith((SECTIONS.find((s) => s.k === t.dataset.sec).n.split(' ')[0]).toLowerCase())); if (i >= 0) { cur = i; render(); } }
@@ -598,6 +609,7 @@ $('pgPrev').onclick = () => { cur -= 1; render(); };
 $('pgNext').onclick = () => { cur += 1; render(); };
 document.addEventListener('keydown', (e) => { if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return; if (e.key === 'ArrowRight' && cur < pages.length - 1) { cur++; render(); } if (e.key === 'ArrowLeft' && cur > 0) { cur--; render(); } });
 $('printBtn').onclick = printNow;
+document.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') { e.preventDefault(); printNow(); } }); // Ctrl+P would print an empty page
 $('moreBtn').onclick = (e) => { e.stopPropagation(); $('menu').hidden = !$('menu').hidden; };
 document.addEventListener('click', () => { $('menu').hidden = true; });
 $('resetBtn').onclick = () => { if (!confirm('Go back to the default planner? Your dates and habits will be cleared.')) return; S = blank(); save(); cur = 0; renderUI(); };
@@ -607,6 +619,6 @@ $('restoreBtn').onclick = async () => { proMessage('Checking your purchases…')
 $('closePro').onclick = () => $('proDialog').close();
 
 load();
-renderUI();
+setPro(isPro); // show the Pro button from what we know (also when the Store does not answer offline); renders the UI
 checkPro();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
